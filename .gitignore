@@ -1,0 +1,5 @@
+*.pdf
+*.tsv
+*.txt
+.idea
+.DS_Store
