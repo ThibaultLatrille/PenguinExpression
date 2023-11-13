@@ -203,12 +203,12 @@ def rate_asfct_diversity(input_df, slopes, output_path, rep: int, cutoff: float,
 
 def run(file_path: str, q=100, rep=1000, cutoff=5, muN_muS=0.3):
     df_data = open_data(file_path, muN_muS=muN_muS)
-    slopes_poly = rate_asfct_expression(df_data, output_path=f"output/poly_eLevel/{q}bins_{cutoff}cutoff",
+    slopes_poly = rate_asfct_expression(df_data, output_path=f"results/poly_eLevel/{q}bins_{cutoff}cutoff",
                                         cat='Syn#', rate='pN/pS', q=q, rep=rep, cutoff=cutoff)
-    slopes_div = rate_asfct_expression(df_data, output_path=f"output/div_eLevel/{q}bins_{cutoff}cutoff",
+    slopes_div = rate_asfct_expression(df_data, output_path=f"results/div_eLevel/{q}bins_{cutoff}cutoff",
                                        cat='SynFix', rate='dN/dS', q=q, rep=rep, cutoff=cutoff)
     slopes = {"poly": slopes_poly, "div": slopes_div}
-    rate_asfct_diversity(df_data, slopes, output_path=f"output/rate_diversity/{q}bins_{cutoff}cutoff",
+    rate_asfct_diversity(df_data, slopes, output_path=f"results/rate_diversity/{q}bins_{cutoff}cutoff",
                          rep=rep, cutoff=cutoff, muN_muS=muN_muS)
 
 
@@ -216,7 +216,7 @@ def main():
     qcuts = [0, 10, 30, 100, 500]
     cutoffs = [0, 1, 2, 5, 10]
     for qcut, cutoff in itertools.product(qcuts, cutoffs):
-        run('geneStatsExp.tsv', q=qcut, rep=1000, cutoff=cutoff)
+        run('data/geneStatsExp.tsv', q=qcut, rep=1000, cutoff=cutoff)
 
 
 if __name__ == "__main__":
