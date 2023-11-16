@@ -37,8 +37,9 @@ def bootstrap(input_df: pd.DataFrame) -> pd.DataFrame:
     return df_output
 
 
-def open_data(input_path: str, muN_muS: float) -> pd.DataFrame:
+def open_data(input_path: str, theta) -> pd.DataFrame:
     df = pd.read_csv(input_path, sep='\t')
+    muN_muS = df["lds"] / df["ldn"]
     df[eLevel] = (df[f"k{eLevel}"] + df[f"e{eLevel}"]) / 2
     for sp in ['k', 'e']:
         df[f"{sp}dN/dS"] = muN_muS * df[f"{sp}MisFix"] / df[f"{sp}SynFix"]
@@ -46,6 +47,8 @@ def open_data(input_path: str, muN_muS: float) -> pd.DataFrame:
         finite = np.isfinite(pNpS)
         assert np.allclose(pNpS[finite], df[f"{sp}pN/pS"][finite]), "pN/pS is not equal to Mis#/Syn#"
         df[f"{sp}pN/pS"] = muN_muS * pNpS
+        piNpiS = df[f"{sp}Mis{theta}"] / df[f"{sp}Syn{theta}"]
+        df[f"{sp}piN/piS"] = muN_muS * piNpiS
     return df
 
 
@@ -80,14 +83,14 @@ def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rat
     return slope, rsquared
 
 
-def rate_asfct_expression(input_df, output_path: str, cat: str, rate: str, q: int, rep: int, cutoff: float):
+def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str, q: int, rep: int, cutoff: float):
     fig, axs = plt.subplots(1, 2, figsize=(10, 5))
     slopes = dict()
     # Plot pN/pS ratio as a function of {eLevel}, both for king and emperor penguins
     for sp, name in [('k', "king"), ('e', 'emperor')]:
         x_col = f"{sp}{eLevel}"
         # Remove rows with {eLevel} = 0 rows with pS = 0
-        df_sp = filter_df(filter_df(input_df, x_col, cutoff=0.0), f"{sp}{cat}", cutoff=cutoff)
+        df_sp = filter_df(filter_df(input_df, x_col, cutoff=0.0), f"{sp}{cat_filter}", cutoff=cutoff)
         if len(df_sp) < 2:
             print(f"Skipping {name} penguins because of insufficient data")
             continue
@@ -133,10 +136,10 @@ def slope_asfct_diversity_2pops(df_e: pd.DataFrame, df_k: pd.DataFrame, rate: st
     return slope
 
 
-def exome_slope_asfct_diversity(df: pd.DataFrame, rate: str, delta_log_pi: float, muN_muS: float):
+def exome_slope_asfct_diversity(df: pd.DataFrame, mut: str, delta_log_pi: float):
     dico = dict()
+    muN_muS = np.sum(df["lds"]) / np.sum(df["ldn"])
     for sp in ['k', 'e']:
-        mut = "#" if rate == 'pN/pS' else "Fix"
         sum_n = np.sum(df[f"{sp}Mis{mut}"])
         sum_s = np.sum(df[f"{sp}Syn{mut}"])
         dico[sp] = muN_muS * sum_n / sum_s
@@ -145,12 +148,12 @@ def exome_slope_asfct_diversity(df: pd.DataFrame, rate: str, delta_log_pi: float
     return slope
 
 
-def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat: str, rate: str, ax: plt.Axes, slopes_expression: dict,
-               rep: int, cutoff: float, muN_muS: float):
+def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat_filter: str, mut:str, rate: str, ax: plt.Axes, slopes_expression: dict,
+               rep: int, cutoff: float):
     # Filter rows with no synonymous substitutions
-    df_e = filter_df(input_df, f"e{cat}", cutoff=cutoff)
-    df_k = filter_df(input_df, f"k{cat}", cutoff=cutoff)
-    df_inter = filter_df(df_e, f"k{cat}", cutoff=cutoff)
+    df_e = filter_df(input_df, f"e{cat_filter}", cutoff=cutoff)
+    df_k = filter_df(input_df, f"k{cat_filter}", cutoff=cutoff)
+    df_inter = filter_df(df_e, f"k{cat_filter}", cutoff=cutoff)
 
     boxplot_data = {k: v.replicates for k, v in slopes_expression.items()}
     boxplot_data["inter"] = list()
@@ -160,7 +163,7 @@ def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat: str, rate: str,
     mean_data = {k: v.mean for k, v in slopes_expression.items()}
     mean_data["inter"] = slope_asfct_diversity(df_inter, rate, delta_log_pi)
     mean_data["union"] = slope_asfct_diversity_2pops(df_e, df_k, rate, delta_log_pi)
-    mean_data["exome"] = exome_slope_asfct_diversity(input_df, rate, delta_log_pi, muN_muS=muN_muS)
+    mean_data["exome"] = exome_slope_asfct_diversity(input_df, mut, delta_log_pi)
 
     for i in range(rep):
         df_bootstrap = bootstrap(df_inter)
@@ -169,7 +172,7 @@ def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat: str, rate: str,
         df_k_bootstrap = bootstrap(df_k)
         boxplot_data["union"].append(slope_asfct_diversity_2pops(df_e_bootstrap, df_k_bootstrap, rate, delta_log_pi))
         exome_bootstrap = bootstrap(input_df)
-        boxplot_data["exome"].append(exome_slope_asfct_diversity(exome_bootstrap, rate, delta_log_pi, muN_muS=muN_muS))
+        boxplot_data["exome"].append(exome_slope_asfct_diversity(exome_bootstrap, mut, delta_log_pi))
 
     ax.boxplot(boxplot_data.values(), labels=boxplot_data.keys())
     for i, (name, b) in enumerate(mean_data.items()):
@@ -180,18 +183,18 @@ def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat: str, rate: str,
     ax.set_title(rate)
 
 
-def rate_asfct_diversity(input_df, slopes, output_path, rep: int, cutoff: float, muN_muS: float):
+def rate_asfct_diversity(input_df, slopes, output_path, poly: str, rate_poly: str, rep: int, cutoff: float):
     fig, axs = plt.subplots(1, 2, figsize=(10, 5))
 
     sum_len = input_df["exonLen"].sum()
-    dico_pi = {sp: input_df[f"{sp}Syn#"].sum() / sum_len for sp in ['k', 'e']}
+    dico_pi = {sp: input_df[f"{sp}Syn{poly}"].sum() / sum_len for sp in ['k', 'e']}
     print(f"pi={dico_pi}")
     delta_log_pi = np.log(dico_pi['e'] / dico_pi['k'])
     print(f"Delta_logNe={delta_log_pi:.3f}")
 
     # Filter rows with no synonymous polymorphisms
-    plot_rates(input_df, delta_log_pi, 'SynFix', 'dN/dS', axs[0], slopes["div"], rep, cutoff, muN_muS)
-    plot_rates(input_df, delta_log_pi, 'Syn#', 'pN/pS', axs[1], slopes["poly"], rep, cutoff, muN_muS)
+    plot_rates(input_df, delta_log_pi, 'SynFix', 'Fix','dN/dS', axs[0], slopes["div"], rep, cutoff)
+    plot_rates(input_df, delta_log_pi, 'Syn#', poly, rate_poly, axs[1], slopes["poly"], rep, cutoff)
     plt.suptitle(f"Susceptibility as function of effective population size")
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -201,22 +204,25 @@ def rate_asfct_diversity(input_df, slopes, output_path, rep: int, cutoff: float,
     plt.clf()
 
 
-def run(file_path: str, q=100, rep=1000, cutoff=5, muN_muS=0.3):
-    df_data = open_data(file_path, muN_muS=muN_muS)
+def run(file_path: str, q=100, rep=1000, cutoff=5):
+    # '#' for polymorphism, 'Tajima' for diversity
+    poly = "Tajima"  # or "Watterson", "Fay_wu" or # for polymorphism
+    rate_poly = 'piN/piS'  # or 'pN/pS' for polymorphism
+    df_data = open_data(file_path, poly)
     slopes_poly = rate_asfct_expression(df_data, output_path=f"results/poly_eLevel/{q}bins_{cutoff}cutoff",
-                                        cat='Syn#', rate='pN/pS', q=q, rep=rep, cutoff=cutoff)
+                                        cat_filter='Syn#', rate=rate_poly, q=q, rep=rep, cutoff=cutoff)
     slopes_div = rate_asfct_expression(df_data, output_path=f"results/div_eLevel/{q}bins_{cutoff}cutoff",
-                                       cat='SynFix', rate='dN/dS', q=q, rep=rep, cutoff=cutoff)
+                                       cat_filter='SynFix', rate='dN/dS', q=q, rep=rep, cutoff=cutoff)
     slopes = {"poly": slopes_poly, "div": slopes_div}
     rate_asfct_diversity(df_data, slopes, output_path=f"results/rate_diversity/{q}bins_{cutoff}cutoff",
-                         rep=rep, cutoff=cutoff, muN_muS=muN_muS)
+                         poly=poly, rate_poly=rate_poly, rep=rep, cutoff=cutoff)
 
 
 def main():
     qcuts = [0, 10, 30, 100, 500]
     cutoffs = [0, 1, 2, 5, 10]
     for qcut, cutoff in itertools.product(qcuts, cutoffs):
-        run('data/geneStatsExp.tsv', q=qcut, rep=1000, cutoff=cutoff)
+        run('results/geneStatsTheta.tsv', q=qcut, rep=100, cutoff=cutoff)
 
 
 if __name__ == "__main__":
