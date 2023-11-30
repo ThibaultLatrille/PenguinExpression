@@ -14,9 +14,23 @@ def theta(sfs_epsilon, daf_n, weight_method):
     return np.sum(sfs_theta * weights) / np.sum(weights)
 
 
-def main():
-    input_path = "data/dacXgene"
-    output_path = "results/theta.tsv"
+def intergenetic(intergenic_path, intergenic_output_path):
+    intergenic_df = pd.read_csv(intergenic_path, sep='\t')
+    intergenic_outdict = defaultdict(list)
+    for pop in ["e", "k"]:
+        for region in ["Intergenic", "Introns"]:
+            sfs = intergenic_df[f"{pop}{region}"]
+            intergenic_outdict["pop"].append(pop)
+            intergenic_outdict["region"].append(region)
+            for theta_method in sfs_weight:
+                theta_sfs = theta(sfs, 48, theta_method)
+                intergenic_outdict[theta_method].append(theta_sfs)
+    intergenic_outdf = pd.DataFrame(intergenic_outdict)
+    print(f"Saving {intergenic_output_path}")
+    intergenic_outdf.to_csv(intergenic_output_path, sep='\t', index=False)
+
+
+def main(input_path, output_path):
     input_df = pd.read_csv(input_path, sep='\t', names=["pop", "gene", "len", "type", "DAC"])
     max_dac = 48
     output_dict = defaultdict(list)
@@ -39,8 +53,11 @@ def main():
             theta_sfs = theta(sfs, max_dac, theta_method)
             output_dict[theta_method].append(theta_sfs)
     output_df = pd.DataFrame(output_dict)
+    print(f"Saving {output_path}")
     output_df.to_csv(output_path, sep='\t', index=False)
 
 
 if __name__ == '__main__':
-    main()
+    intergenetic("data/sfs_intergenic_introns.tsv", "results/theta_introns.tsv")
+    intergenetic("data/sfs_intergenic_introns_allVariants.tsv", "results/theta_intergenic_allVariants.tsv")
+    main(input_path="data/dacXgene.tsv", output_path="results/theta.tsv")

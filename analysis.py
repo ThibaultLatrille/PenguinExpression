@@ -8,19 +8,14 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.colors import to_rgb
 
 eLevel = "TPM"
 Bootstrap = namedtuple("Bootstrap", ["mean", "replicates"])
+GREEN = "#8FB03E"
+RED = "#EB6231"
+YELLOW = "#E29D26"
 BLUE = "#5D80B4"
-BLUE_RGB = to_rgb(BLUE)
-
-
-def fmt(x):
-    s = f"{x:.1f}"
-    if s.endswith("0"):
-        s = f"{x:.0f}"
-    return f"{s}"
+LIGHTGREEN = "#6ABD9B"
 
 
 def filter_df(input_df: pd.DataFrame, x: str, cutoff: float = 0.0) -> pd.DataFrame:
@@ -52,6 +47,28 @@ def open_data(input_path: str, theta) -> pd.DataFrame:
     return df
 
 
+def format_label(label: str) -> str:
+    if label == "piN/piS":
+        return "$\\pi_{\\mathrm{N}} / \\pi_{\\mathrm{S}}$"
+    elif label == "pN/pS":
+        return "$p_{\\mathrm{N}} / p_{\\mathrm{S}}$"
+    elif label == "dN/dS":
+        return "$d_{\\mathrm{N}} / d_{\\mathrm{S}}$"
+    else:
+        return label
+
+
+def format_chi_label(label: str) -> str:
+    if label == "king" or label == "k":
+        return "$\\chi^{\\mathrm{K}}$"
+    elif label == "emperor" or label == "e":
+        return "$\\chi^{\\mathrm{E}}$"
+    elif label == "exome":
+        return "$\\frac{\\Delta \\omega}{\\Delta \\log(N_\\mathrm{e})}$"
+    else:
+        return label
+
+
 def average_group(gr_sp, x_col: str) -> np.array:
     return np.array([np.average(df_group[x_col]) if len(df_group) > 0 else np.nan for qcut, df_group in gr_sp])
 
@@ -71,20 +88,22 @@ def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rat
     slope, intercept = np.polyfit(expression[finite], pNpS[finite], 1)
     rsquared = np.corrcoef(expression[finite], pNpS[finite])[0, 1] ** 2
     if ax is not None:
-        label = f"slope={slope:.3f}, $R^2$={rsquared:.3f} ({len(df_sp)} genes)"
+        label = f"{format_chi_label(sp)} = {slope:.3f}, $R^2$={rsquared:.3f}"
         print(f"{rate} for {name.title()} penguins: {label}")
+        color = BLUE if name == "king" else YELLOW
         if 0 < q < len(df_sp) // 2:
-            ax.scatter(expression, pNpS, alpha=0.5, color=BLUE_RGB)
+            ax.scatter(expression, pNpS, alpha=0.5, color=color)
         else:
             keep = (pNpS < 1) & (pNpS > 0)
-            ax.scatter(expression[keep], pNpS[keep], alpha=0.5, color=BLUE_RGB)
-        ax.plot(expression, slope * np.array(expression) + intercept, label=label)
+            ax.scatter(expression[keep], pNpS[keep], alpha=0.1, color=color)
+        ax.plot(expression, slope * np.array(expression) + intercept, label=label, color=RED)
         ax.legend()
     return slope, rsquared
 
 
 def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str, q: int, rep: int, cutoff: float):
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+
     slopes = dict()
     # Plot pN/pS ratio as a function of {eLevel}, both for king and emperor penguins
     for sp, name in [('k', "king"), ('e', 'emperor')]:
@@ -99,8 +118,8 @@ def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str
         ax = axs[0] if sp == 'k' else axs[1]
         slope, rsquared = slope_asfct_expression(df_sp, q, sp, x_col, rate, name, ax=ax)
         ax.set_xlabel(f"log({eLevel})")
-        ax.set_ylabel(rate)
-        ax.set_title(f"{name.title()} penguins")
+        ax.set_ylabel(format_label(rate))
+        ax.set_title(f"{name.title()} penguins ({len(df_sp)} genes)")
         slopes[name] = Bootstrap(mean=slope, replicates=[])
         for i in range(rep):
             df_bootstrap = bootstrap(df_sp)
@@ -110,30 +129,14 @@ def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str
     if len(slopes) == 0:
         print("No data to plot")
         return slopes
-    plt.suptitle(f"{rate} ratio as a function of {eLevel} for {q} bins")
+    plt.suptitle(f"{format_label(rate)} ratio as a function of {eLevel} for {q} bins")
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path)
+    plt.savefig(output_path + ".pdf", format="pdf")
     print(f"Saving figure to {output_path}")
     plt.close()
     plt.clf()
     return slopes
-
-
-def slope_asfct_diversity(df: pd.DataFrame, rate: str, delta_log_pi: float):
-    e_rate = np.average(df[f"e{rate}"])  # Remove rows with pS = 0
-    k_rate = np.average(df[f"k{rate}"])
-    delta_rate = e_rate - k_rate
-    slope = delta_rate / delta_log_pi
-    return slope
-
-
-def slope_asfct_diversity_2pops(df_e: pd.DataFrame, df_k: pd.DataFrame, rate: str, delta_log_pi: float):
-    e_rate = np.average(df_e[f"e{rate}"])  # Remove rows with pS = 0
-    k_rate = np.average(df_k[f"k{rate}"])
-    delta_rate = e_rate - k_rate
-    slope = delta_rate / delta_log_pi
-    return slope
 
 
 def exome_slope_asfct_diversity(df: pd.DataFrame, mut: str, delta_log_pi: float):
@@ -148,60 +151,56 @@ def exome_slope_asfct_diversity(df: pd.DataFrame, mut: str, delta_log_pi: float)
     return slope
 
 
-def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, cat_filter: str, mut:str, rate: str, ax: plt.Axes, slopes_expression: dict,
-               rep: int, cutoff: float):
-    # Filter rows with no synonymous substitutions
-    df_e = filter_df(input_df, f"e{cat_filter}", cutoff=cutoff)
-    df_k = filter_df(input_df, f"k{cat_filter}", cutoff=cutoff)
-    df_inter = filter_df(df_e, f"k{cat_filter}", cutoff=cutoff)
-
+def plot_rates(input_df: pd.DataFrame, delta_log_pi: float, mut: str, rate: str, ax: plt.Axes,
+               slopes_expression: dict, rep: int):
     boxplot_data = {k: v.replicates for k, v in slopes_expression.items()}
-    boxplot_data["inter"] = list()
-    boxplot_data["union"] = list()
     boxplot_data["exome"] = list()
 
     mean_data = {k: v.mean for k, v in slopes_expression.items()}
-    mean_data["inter"] = slope_asfct_diversity(df_inter, rate, delta_log_pi)
-    mean_data["union"] = slope_asfct_diversity_2pops(df_e, df_k, rate, delta_log_pi)
     mean_data["exome"] = exome_slope_asfct_diversity(input_df, mut, delta_log_pi)
 
     for i in range(rep):
-        df_bootstrap = bootstrap(df_inter)
-        boxplot_data["inter"].append(slope_asfct_diversity(df_bootstrap, rate, delta_log_pi))
-        df_e_bootstrap = bootstrap(df_e)
-        df_k_bootstrap = bootstrap(df_k)
-        boxplot_data["union"].append(slope_asfct_diversity_2pops(df_e_bootstrap, df_k_bootstrap, rate, delta_log_pi))
         exome_bootstrap = bootstrap(input_df)
         boxplot_data["exome"].append(exome_slope_asfct_diversity(exome_bootstrap, mut, delta_log_pi))
 
-    ax.boxplot(boxplot_data.values(), labels=boxplot_data.keys())
+    assert len(boxplot_data) == len(mean_data)
+    medianprops = dict(linestyle='-', linewidth=0)
+    ax.boxplot(boxplot_data.values(), labels=[format_chi_label(k) for k in boxplot_data.keys()],
+               medianprops=medianprops)
     for i, (name, b) in enumerate(mean_data.items()):
-        ax.scatter(i + 1, b, label=f"{name.title()}={b:.3f}")
-    ax.set_ylabel(f"Δω / Δlog(π)")
-    ax.set_xlabel(f"Number of bins")
+        color = BLUE if name == "king" else (YELLOW if name == "emperor" else GREEN)
+        ax.scatter(i + 1, b, label=f"{format_chi_label(name)}={b:.3f}", color=color)
+    ax.set_ylabel("$\\chi$")
+    ax.set_xlabel("")
     ax.legend()
-    ax.set_title(rate)
+    ax.set_title(f"$\\omega$={format_label(rate)}")
 
 
-def rate_asfct_diversity(input_df, slopes, output_path, poly: str, rate_poly: str, rep: int, cutoff: float):
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-
-    sum_len = input_df["exonLen"].sum()
-    dico_pi = {sp: input_df[f"{sp}Syn{poly}"].sum() / sum_len for sp in ['k', 'e']}
-    print(f"pi={dico_pi}")
-    delta_log_pi = np.log(dico_pi['e'] / dico_pi['k'])
-    print(f"Delta_logNe={delta_log_pi:.3f}")
+def rate_asfct_diversity(input_df, slopes, output_path, poly: str, rate_poly: str, rep: int, delta_log_pi: float):
+    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
     # Filter rows with no synonymous polymorphisms
-    plot_rates(input_df, delta_log_pi, 'SynFix', 'Fix','dN/dS', axs[0], slopes["div"], rep, cutoff)
-    plot_rates(input_df, delta_log_pi, 'Syn#', poly, rate_poly, axs[1], slopes["poly"], rep, cutoff)
-    plt.suptitle(f"Susceptibility as function of effective population size")
+    plot_rates(input_df, delta_log_pi, 'Fix', 'dN/dS', axs[0], slopes["div"], rep)
+    plot_rates(input_df, delta_log_pi, poly, rate_poly, axs[1], slopes["poly"], rep)
+    plt.suptitle(f"Estimators of $\\chi$ ({rep} bootstrap replicates)")
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path)
+    plt.savefig(output_path + ".pdf", format="pdf")
     print(f"Saving figure to {output_path}")
     plt.close()
     plt.clf()
+
+
+def compute_delta_log_pi(input_path: str, region: str = "Intergenic", theta: str = "tajima"):
+    df = pd.read_csv(input_path, sep='\t')
+    df_e = df[(df["pop"] == "e") & (df["region"] == region)]
+    df_k = df[(df["pop"] == "k") & (df["region"] == region)]
+    assert len(df_e) == len(df_k) == 1, f"Expected 1 row for {region} in each population"
+    pi_e = df_e[theta].values[0]
+    pi_k = df_k[theta].values[0]
+    dlp = np.log(pi_e / pi_k)
+    print(f"Delta log pi = {dlp}")
+    return dlp
 
 
 def run(file_path: str, q=100, rep=1000, cutoff=5):
@@ -214,15 +213,16 @@ def run(file_path: str, q=100, rep=1000, cutoff=5):
     slopes_div = rate_asfct_expression(df_data, output_path=f"results/div_eLevel/{q}bins_{cutoff}cutoff",
                                        cat_filter='SynFix', rate='dN/dS', q=q, rep=rep, cutoff=cutoff)
     slopes = {"poly": slopes_poly, "div": slopes_div}
+    delta_log_pi = compute_delta_log_pi("results/theta_intergenic_allVariants.tsv")
     rate_asfct_diversity(df_data, slopes, output_path=f"results/rate_diversity/{q}bins_{cutoff}cutoff",
-                         poly=poly, rate_poly=rate_poly, rep=rep, cutoff=cutoff)
+                         poly=poly, rate_poly=rate_poly, rep=rep, delta_log_pi=delta_log_pi)
 
 
 def main():
-    qcuts = [0, 10, 30, 100, 500]
-    cutoffs = [0, 1, 2, 5, 10]
+    qcuts = [0, 25, 50, 100]
+    cutoffs = [0]
     for qcut, cutoff in itertools.product(qcuts, cutoffs):
-        run('results/geneStatsTheta.tsv', q=qcut, rep=100, cutoff=cutoff)
+        run('results/geneStatsTheta.tsv', q=qcut, rep=10000, cutoff=cutoff)
 
 
 if __name__ == "__main__":

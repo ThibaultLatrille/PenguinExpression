@@ -1,0 +1,169 @@
+%! BibTeX Compiler = biber
+%TC:ignore
+\documentclass[10pt]{article}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{xcolor}
+\definecolor{BLUELINK}{HTML}{0645AD}
+\definecolor{DARKBLUELINK}{HTML}{0B0080}
+\definecolor{LIGHTGREY}{gray}{0.9}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[colorlinks=false]{hyperref}
+% for linking between references, figures, TOC, etc in the pdf document
+\hypersetup{colorlinks,
+    linkcolor=DARKBLUELINK,
+    anchorcolor=DARKBLUELINK,
+    citecolor=DARKBLUELINK,
+    filecolor=DARKBLUELINK,
+    menucolor=DARKBLUELINK,
+    urlcolor=BLUELINK
+} % Color citation links in purple
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{naturalnames}{hyperref}
+
+\usepackage[backend=biber,eprint=false,isbn=false,url=false,intitle=true,style=nature,date=year]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{amssymb,amsfonts,amsmath,amsthm,mathtools}
+\usepackage{lmodern}
+\usepackage{xfrac, nicefrac}
+\usepackage{bm}
+\usepackage{listings, enumerate, enumitem}
+\usepackage[export]{adjustbox}
+\usepackage{graphicx}
+\usepackage{bbold}
+\usepackage{pdfpages}
+\pdfinclusioncopyfonts=1
+
+\renewcommand{\baselinestretch}{1.5}
+\renewcommand{\arraystretch}{0.6}
+\frenchspacing
+
+\newcommand{\UniDimArray}[1]{\bm{#1}}
+\newcommand{\der}{\text{d}}
+\newcommand{\e}{\text{e}}
+\newcommand{\Ne}{N_{\text{e}}}
+\newcommand{\dn}{d_{\text{N}}}
+\newcommand{\ds}{d_{\text{S}}}
+\newcommand{\dnds}{\dn / \ds}
+\newcommand{\pin}{\pi_{\text{N}}}
+\newcommand{\pis}{\pi_{\text{S}}}
+\newcommand{\pinpis}{\pin / \pis}
+\newcommand{\piInter}{\pi_{\text{I}}}
+
+\begin{document}
+
+    \part*{Rate of evolution as function of expression level and $\Ne$}
+    \tableofcontents
+    \clearpage
+
+
+    \section{Theoretical expectation}
+
+    Thermodynamic equations allow one to derive the proportion of protein molecules that are in the native (folded) conformation in the cytoplasm.
+    We assume that each misfolded protein molecule has the same selective cost, caused by its toxicity for the cell.
+    Under this model, the total selective cost of a destabilizing mutation is now directly proportional to the total amount of misfolded proteins, and is proportional the expression level $y$.
+    It is then possible to derive the equilibrium at mutation-selection equilibrium as a function of expression level $y$.
+    Moreover, under different effective population size ($\Ne$), the strength of selection exerted on destabilizing mutations is different, and thus the equilibrium is different.
+
+    At the specific equilibrium between mutation, selection and drift, the rate of evolution is given by the probability of fixation of a selected mutation (relative to neutral mutation), called $\omega$.
+    In practice, $\omega$ is a approximated from the ratio of non-synonymous to synonymous polymorphism, $\pinpis$, and or divergence, $\dnds$.
+    Altogether, it is possible to derive analytically the change in $\omega$ as a function of $\Ne$ and $y$ as in \textcite[eq.~18]{latrille_quantifying_2021}.
+    \begin{align}
+        \chi = \frac{ \Delta \omega}{\Delta \log (\Ne)} = \frac{ \Delta \omega}{\Delta \log (y)} = C < 0,
+    \end{align}
+    where $C$ is a constant that depends on thermodynamic parameters.
+    From this equation, $\omega$ is linearly decreasing with $\Ne$ (in log scale) as well as with $y$ (in log scale), importantly the slope of the linear model is the same for both.
+
+
+    \section{Computating genetic diversity and divergence}
+
+    \subsection{Number of sites}\label{subsec:nunber-of-sites}
+    Between different genes, polymorphism and divergence counts are not directly comparable because they are not in the same unit and are mechanically higher for genes with more sites.
+    Moreover, even under neutrality, non-synonymous polymorphism counts are expected higher than synonymous counts because a mutation is more likely to be non-synonymous than synonymous.
+    This argument is also true for non-synonymous and synonymous substitutions, respectively, that must be corrected for.
+
+    Deriving the number of sites is thus necessary to correct polymorphism and divergence count such as to obtain non-synonymous divergence ($\dn$), synonymous divergence ($\ds$), synonymous polymorphism ($\pin$) and non-synonymous polymorphism ($\pis$) in the same unit.
+    For each gene, all possible nucleotide mutations were computed from the reference protein-coding DNA sequence ($3 \times L$ mutations for a sequence of $L$ nucleotides).
+    Whether a mutation was synonymous or non-synonymous was determined by comparing the reference codon to the codon obtained after the mutation.
+    Moreover, each mutation was weighted by the instantaneous rate of change between nucleotides, derived from fitting a nucleotide substitution model to the b10k alignment.
+    The proportion of synonymous mutations was then given as the sum of the instantaneous rates of all synonymous mutations, divided by the sum across all possible mutations (synonymous, non-synonymous, stop).
+    This proportion of mutations being synonymous is multiplied by the number of sites in the gene to obtain the number of synonymous sites.
+    Repeating this process for non-synonymous mutations gives the number of non-synonymous sites.
+
+    \subsection{Genetic diversity ($\pi$, $\pin$, $\pis$)}
+    As an estimator of genetic diversity, we used Tajima's $\pi$, the average pairwise difference between all sequences in the sample.
+    $\pi$ was obtained for each population from the site-frequency spectrum (SFS) as in~\textcite[eq.~5-6]{achaz_frequency_2009}.
+    Formally, $\UniDimArray{\xi}$ is a vector that represents the unfolded frequency spectrum composed of $\xi_i$, the number of polymorphic sites at frequency $i/n$ in the sample ($1 \leq i \leq n - 1$), where $n=48$ is the sample size (twice the number of individuals) in the population.
+    $\pi$ is a function of $\UniDimArray{\xi}$ as:
+    \begin{align}
+        \pi (\UniDimArray{\xi}) =  \frac{\sum_{i=1}^{n - 1} (n - i)\times i \times \xi_i}{\sum_{i=1}^{n - 1} (n - i)},
+    \end{align}
+    $\pi$ was computed separately for non-synonymous ($\pin$), synonymous ($\pis$) polymorphism and also for inter-genic regions ($\piInter$, see below).
+    Finally, to correct $\dn$, $\ds$, $\pin$, $\pis$ such that they are comparable between them, they are expressed in the same unit (per site) by normalizing with the number of non-synonymous or synonymous sites (see above), respectively.
+
+
+    \section{$\omega$ as function of expression level}
+
+    \subsection{Estimation}
+    $\omega$ represents the rate of evolution of a protein, either estimated from polymorphism ($\pinpis$) or divergence ($\dnds$).
+    $\omega$ was computed for each gene as the ratio of non-synonymous to synonymous polymorphism ($\pinpis$) or divergence ($\dnds$).
+    To compute $\pinpis$ or $\dnds$, each gene must have at least one synonymous count, otherwise the ratio is undefined.
+    $\chi$ is the slope of the linear regression of $\omega$ as a function of $\log(y)$, where $y$ is the expression level of the gene in TPM (transcripts per million).
+    We computed $\chi$ independently in the two penguins populations (Emperor, E) and (King, K), and we denote $\chi^{\text{E}}$ and $\chi^{\text{K}}$ their estimates of $\chi$ respectively.
+
+    To assess the robustness of the results and assess the fit of the linear model, we performed the same analysis while binning genes by their expression level.
+    We performed the analysis with respectively 10, 25, 50 and 100 bins, and computed the slope of the linear regression $\chi$ and R$^2$.
+
+    \subsubsection{Results with no bins}
+    \begin{center}
+        \includegraphics[width=0.85\textwidth]{../results/div_eLevel/0bins_0cutoff}
+        \includegraphics[width=0.85\textwidth]{../results/poly_eLevel/0bins_0cutoff}
+    \end{center}
+
+    \subsubsection{Results with 100 bins}
+    \begin{center}
+        \includegraphics[width=0.85\textwidth]{../results/div_eLevel/100bins_0cutoff}
+        \includegraphics[width=0.85\textwidth]{../results/poly_eLevel/100bins_0cutoff}
+    \end{center}
+
+    \subsubsection{Results with 50 bins}
+    \begin{center}
+        \includegraphics[width=0.85\textwidth]{../results/div_eLevel/50bins_0cutoff}
+        \includegraphics[width=0.85\textwidth]{../results/poly_eLevel/50bins_0cutoff}
+    \end{center}
+
+    \subsubsection{Results with 25 bins}
+    \begin{center}
+        \includegraphics[width=0.85\textwidth]{../results/div_eLevel/25bins_0cutoff}
+        \includegraphics[width=0.85\textwidth]{../results/poly_eLevel/25bins_0cutoff}
+    \end{center}
+
+    The slope of $\pinpis$ as a function of log expression level is not dependent on the number of bins used to compute $\pinpis$ or $\dnds$.
+    However, for few bins, linear model is a strong fit (high R$^2$), but the fit decreases as the number of bins increases.
+
+    \section{$\omega$ as function of $\Ne$}
+
+    \subsection{Estimation}
+    Given the two penguins populations (Emperor, E) and (King, K), we also estimated $\chi$ as the change of $\omega$ as a function of $\Ne$:
+    \begin{align}
+        \chi & = \frac{\Delta \omega}{\Delta \log \left( \Ne \right)} \\
+             & = \frac{\omega^{\text{E}} - \omega^{\text{K}}}{\log\left( \Ne^{\text{E}}\right) - \log \left(\Ne^{\text{K}}\right)}.
+    \end{align}
+    Under the assumption that the mutation rate ($u$) is the same between the two populations, and since $\pi = 4 \Ne u$ from neutral markers, $\chi$ simplifies to
+    \begin{align}
+        \chi & = \frac{\omega^{\text{E}} - \omega^{\text{K}}}{\log\left( \piInter^{\text{E}} / \piInter^{\text{K}} \right)},
+    \end{align}
+    where $\piInter^{\text{E}}$ and $\piInter^{\text{K}}$ are estimated from the inter-genic regions, which are assumed to be neutral.
+    Here normalization by the number of sites is not required since $\pi^{\text{E}}$ and $\pi^{\text{K}}$ are already expressed in the same unit in the two populations (the same reference genome was used), which cancels out in the ratio $\piInter^{\text{E}} / \piInter^{\text{K}}$.
+    $\omega$ (either $\pinpis$ or $\dnds$) is computed as the total count (polymorphism or divergence) across all genes, divided by the total number of sites across all genes, respectively for polymorphism and divergence.
+    We performed a bootstrap sampling (1000 replicates) to estimate the confidence interval of $\chi$, where gene were sampled with replacement in each replicate.
+
+    \subsubsection{Results}
+    \begin{center}
+        \includegraphics[width=0.85\textwidth]{../results/rate_diversity/0bins_0cutoff}
+    \end{center}
+
+    \printbibliography
+
+\end{document}
