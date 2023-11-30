@@ -222,7 +222,7 @@ def main():
     qcuts = [0, 25, 50, 100]
     cutoffs = [0]
     for qcut, cutoff in itertools.product(qcuts, cutoffs):
-        run('results/geneStatsTheta.tsv', q=qcut, rep=10000, cutoff=cutoff)
+        run('results/geneStatsTheta.tsv', q=qcut, rep=1000, cutoff=cutoff)
 
 
 if __name__ == "__main__":

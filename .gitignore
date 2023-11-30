@@ -1,9 +1,6 @@
 *.pdf
-*.tsv
-*.txt
 .idea
 .DS_Store
-data
 out
 results
 manuscript/2023.08.08.552445v1.full.pdf

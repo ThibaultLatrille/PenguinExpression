@@ -1,0 +1,37 @@
+#genes coordinates and length of coding and non coding regions
+gene = gene_ID
+scaffold = scaffold_ID (ref Emperor penguin genome)
+start = gene start position
+end = gene end position
+exonLen = cumulative exon length (from gff annotation file)
+CDSlen = cumulative coding sequence length (from gff annotation file)
+nonCDSLen = cumulative non coding sequence length, include introns (from gff annotation file)
+
+#raw and normalized (as TPM) gene expression. prefix e = Emperor penguin, k = King penguin
+eExp = raw RNA reads counts in Emperor penguin
+kExp = raw RNA reads counts in King penguin
+eRPK = eExp/(CDSlen/1000)
+kRPK = kExp/(CDSlen/1000)
+eTPMscal = eRPK.sum()/1000000
+kTPMscal = kRPK.sum()/1000000
+eTPM = eRPK/eTPMscal
+kTPM = kRPK/kTPMscal
+
+#number and average derived allele counts of polymorphic variants and fixed differences to estimate pN/pS and dN/dS. To be normalized by CDS or exon length.
+eSyn# = number of synonymous variants in the Emperor penguin
+eSyns = cumulative counts of derived alleles at synonymous variants in the Emperor penguin
+eMis# = number of nonsynonymous variants in the Emperor penguin
+eMiss = cumulative counts of derived alleles at nonsynonymous variants in the Emperor penguin
+kSyn# = number of synonymous variants in the King penguin
+kSyns = cumulative counts of derived alleles at synonymous variants in the King penguin
+kMis# = number of nonsynonymous variants in the King penguin
+kMiss = cumulative counts of derived alleles at nonsynonymous variants in the King penguin
+
+eSynFix = number of synonymous fixed derived in the Emperor penguin
+eMisFix = number of nonsynonymous fixed derived in the Emperor penguin
+kSynFix = number of synonymous fixed derived in the King penguin
+kMisFix = number of nonsynonymous fixed derived in the King penguin
+
+epN/pS = number of synonymous / number of nonsynonymous in the Emperor penguin
+kpN/pS = number of synonymous / number of nonsynonymous in the King penguin
+
