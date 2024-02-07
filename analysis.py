@@ -16,6 +16,7 @@ RED = "#EB6231"
 YELLOW = "#E29D26"
 BLUE = "#5D80B4"
 LIGHTGREEN = "#6ABD9B"
+sp_dict = {"k": "king", "e": "emperor"}
 
 
 def filter_df(input_df: pd.DataFrame, x: str, cutoff: float = 0.0) -> pd.DataFrame:
@@ -69,17 +70,17 @@ def format_chi_label(label: str) -> str:
         return label
 
 
-def average_group(gr_sp, x_col: str) -> np.array:
-    return np.array([np.average(df_group[x_col]) if len(df_group) > 0 else np.nan for qcut, df_group in gr_sp])
+def average_group(gr_sp, x_col: str, fn_stat) -> np.array:
+    return np.array([fn_stat(df_group[x_col]) if len(df_group) > 0 else np.nan for qcut, df_group in gr_sp])
 
 
 def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rate: str, name: str, ax: plt.Axes = None):
     if 0 < q < len(df_sp) // 2:
         df_sp['qcut'] = pd.qcut(df_sp[x_col], q=q, duplicates='drop')
-        gr_sp = df_sp.groupby("qcut")
+        gr_sp = df_sp.groupby("qcut", observed=False)
         # np.average(x, weights=w) if you want to weight the average
-        expression = np.log(average_group(gr_sp, x_col))
-        pNpS = average_group(gr_sp, f"{sp}{rate}")
+        expression = np.log(average_group(gr_sp, x_col, np.mean))
+        pNpS = average_group(gr_sp, f"{sp}{rate}", np.mean)
     else:
         expression = np.log(df_sp[x_col])
         pNpS = np.array(df_sp[f"{sp}{rate}"])
@@ -106,7 +107,8 @@ def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str
 
     slopes = dict()
     # Plot pN/pS ratio as a function of {eLevel}, both for king and emperor penguins
-    for sp, name in [('k', "king"), ('e', 'emperor')]:
+    for sp in ['k', 'e']:
+        name = sp_dict[sp]
         x_col = f"{sp}{eLevel}"
         # Remove rows with {eLevel} = 0 rows with pS = 0
         df_sp = filter_df(filter_df(input_df, x_col, cutoff=0.0), f"{sp}{cat_filter}", cutoff=cutoff)
@@ -203,6 +205,21 @@ def compute_delta_log_pi(input_path: str, region: str = "Intergenic", theta: str
     return dlp
 
 
+def rate_top_genes(file_path: str):
+    rate = 'piN/piS'  # or 'pN/pS' for polymorphism
+    df_data = open_data(file_path, "Tajima")
+    for sp, q in itertools.product(['k', 'e'], [2, 10]):
+        print(f"{q} quantiles of expression level for {sp_dict[sp]} penguins.")
+        df_sp = filter_df(filter_df(df_data, f"{sp}{rate}", cutoff=0.0), f"{sp}Syn#", cutoff=0).copy()
+        df_sp[f'qcut_{sp}_{q}'] = pd.qcut(df_sp[f"{sp}{eLevel}"], q=q, duplicates='drop')
+        gr_sp = df_sp.groupby(f'qcut_{sp}_{q}', observed=False)
+        mean_rate_q = average_group(gr_sp, f"{sp}{rate}", np.mean)
+        median_rate_q = average_group(gr_sp, f"{sp}{rate}", np.median)
+        for til, (mean_rate, median_rat) in enumerate(zip(mean_rate_q, median_rate_q)):
+            bracket = f"[{100 * til / q:2.0f}%,{100 * (til + 1) / q:3.0f}%]"
+            print(f"{rate} the {bracket}: Mean={mean_rate:.3f}; Median={median_rat:.3f}")
+
+
 def run(file_path: str, q=100, rep=1000, cutoff=5):
     # '#' for polymorphism, 'Tajima' for diversity
     poly = "Tajima"  # or "Watterson", "Fay_wu" or # for polymorphism
@@ -219,10 +236,12 @@ def run(file_path: str, q=100, rep=1000, cutoff=5):
 
 
 def main():
-    qcuts = [0, 25, 50, 100]
+    filepath = "results/geneStatsTheta.tsv"
+    rate_top_genes(filepath)
+    qcuts = [0, 20, 50, 100]
     cutoffs = [0]
     for qcut, cutoff in itertools.product(qcuts, cutoffs):
-        run('results/geneStatsTheta.tsv', q=qcut, rep=1000, cutoff=cutoff)
+        run(filepath, q=qcut, rep=1000, cutoff=cutoff)
 
 
 if __name__ == "__main__":

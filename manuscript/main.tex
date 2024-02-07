@@ -164,6 +164,17 @@
         \includegraphics[width=0.85\textwidth]{../results/rate_diversity/0bins_0cutoff}
     \end{center}
 
+    \section{Intrepretation of results}
+    Under the assumption that misfolded proteins are toxic for the cell, destabilizing mutations are deleterious and are thus under purifying selection.
+    Because the total amount of misfolded proteins would increase with the gene expression level ($y$), so is the strength of selection exerted on destabilizing mutations.
+    Moreover, and independently, because efficacy of selection increases with the effective population size ($\Ne$), so is the strength of selection exerted on destabilizing mutations.
+    This reasoning can be formalized, \textcite[eq.~18]{latrille_quantifying_2021}, predicting that the rate of non-synonymous over synonymous substitutions ($\dnds$) is linearly decreasing with $\log(y)$ and $\log(\Ne)$, and the slope of the linear model is the same for both.
+    In this study, using polymorphism within species ($\pinpis$ instead of $\dnds$), we showed that the two estimates of the slope are negative are statistically different from zero.
+    However, the estimated are not significantly different from each other, and the confidence intervals overlap.
+    This result suggests that both the expression level ($y$) of the gene and the effective population size ($\Ne$) have a similar effect the strength of selection exerted within protein coding genes.
+    Altogether, although the effect $y$ and $\Ne$ on protein evolution are usually considered separately, our results suggest that instead their effect should be considered together in integrated models of evolution.
+    However, the result must be interpreted with caution since the theoretical expectation were derived with $\pinpis$ instead of $\dnds$, and stability of the results must be assessed more thoroughly with more populations.
+
     \printbibliography
 
 \end{document}
