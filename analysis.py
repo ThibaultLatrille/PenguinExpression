@@ -93,10 +93,9 @@ def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rat
         print(f"{rate} for {name.title()} penguins: {label}")
         color = BLUE if name == "king" else YELLOW
         if 0 < q < len(df_sp) // 2:
-            ax.scatter(expression, pNpS, alpha=0.5, color=color)
+            ax.scatter(expression[finite], pNpS[finite], alpha=0.6, color=color)
         else:
-            keep = (pNpS < 1) & (pNpS > 0)
-            ax.scatter(expression[keep], pNpS[keep], alpha=0.1, color=color)
+            ax.scatter(expression[finite], pNpS[finite], alpha=0.1, color=color)
         ax.plot(expression, slope * np.array(expression) + intercept, label=label, color=RED)
         ax.legend()
     return slope, rsquared
