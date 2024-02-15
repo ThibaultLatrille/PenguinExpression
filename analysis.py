@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
 
 eLevel = "TPM"
 Bootstrap = namedtuple("Bootstrap", ["mean", "replicates"])
@@ -74,7 +75,8 @@ def average_group(gr_sp, x_col: str, fn_stat) -> np.array:
     return np.array([fn_stat(df_group[x_col]) if len(df_group) > 0 else np.nan for qcut, df_group in gr_sp])
 
 
-def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rate: str, name: str, ax: plt.Axes = None):
+def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rate: str, name: str, clip_min: float = -1,
+                           ax: plt.Axes = None):
     if 0 < q < len(df_sp) // 2:
         df_sp['qcut'] = pd.qcut(df_sp[x_col], q=q, duplicates='drop')
         gr_sp = df_sp.groupby("qcut", observed=False)
@@ -82,21 +84,44 @@ def slope_asfct_expression(df_sp: pd.DataFrame, q: int, sp: str, x_col: str, rat
         expression = np.log(average_group(gr_sp, x_col, np.mean))
         pNpS = average_group(gr_sp, f"{sp}{rate}", np.mean)
     else:
-        expression = np.log(df_sp[x_col])
-        pNpS = np.array(df_sp[f"{sp}{rate}"])
+        # ignore warnings about log(0)
+        with np.errstate(divide='ignore'):
+            expression = np.log(df_sp[x_col])
+            pNpS = np.log(np.clip(df_sp[f"{sp}{rate}"], clip_min, None))
+
     # Linear regression between log({eLevel}) and pN/pS
     finite = np.isfinite(expression) & np.isfinite(pNpS)
-    slope, intercept = np.polyfit(expression[finite], pNpS[finite], 1)
-    rsquared = np.corrcoef(expression[finite], pNpS[finite])[0, 1] ** 2
+    y = pNpS[finite]
+    x = expression[finite]
+    slope, intercept = np.polyfit(x, y, 1)
+    rsquared = np.corrcoef(x, y)[0, 1] ** 2
     if ax is not None:
+        x_predic = np.logspace(x.min(), x.max(), 100, base=np.exp(1))
+        y_predic = np.exp(slope * np.log(x_predic) + intercept)
         label = f"{format_chi_label(sp)} = {slope:.3f}, $R^2$={rsquared:.3f}"
+        ax.plot(x_predic, y_predic, label=label, color="black")
         print(f"{rate} for {name.title()} penguins: {label}")
         color = BLUE if name == "king" else YELLOW
         if 0 < q < len(df_sp) // 2:
-            ax.scatter(expression[finite], pNpS[finite], alpha=0.6, color=color)
+            ax.scatter(x, y, alpha=0.6, color=color)
         else:
-            ax.scatter(expression[finite], pNpS[finite], alpha=0.1, color=color)
-        ax.plot(expression, slope * np.array(expression) + intercept, label=label, color=RED)
+            nbins = 300
+            k = gaussian_kde([x, y])
+            xi, yi = np.mgrid[x.min():x.max():nbins * 1j, y.min():y.max():nbins * 1j]
+            zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+            zi_r = zi.reshape(xi.shape)
+            cs = ax.contourf(np.exp(xi), np.exp(yi), zi_r, cmap="afmhot_r", levels=20)
+            min_l = list(cs.levels)[1]
+            low_l = list(cs.levels)[2]
+            cs.cmap.set_under('w')
+            cs.set_clim(min_l)
+            # For each  of the point, find the level of the contour that contains the point
+            xy_scatter = [(np.exp(xp), np.exp(yp)) for xp, yp in zip(x, y) if k.evaluate([xp, yp]) < min_l]
+            ax.scatter(*zip(*xy_scatter), alpha=1.0, color="grey", s=0.8, zorder=10, linewidths=0)
+            xy_scatter = [(np.exp(xp), np.exp(yp)) for xp, yp in zip(x, y) if min_l < k.evaluate([xp, yp]) < low_l]
+            ax.scatter(*zip(*xy_scatter), alpha=1.0, color="grey", s=0.4, zorder=10, linewidths=0)
+            ax.set_xscale('log')
+            ax.set_yscale('log')
         ax.legend()
     return slope, rsquared
 
@@ -118,8 +143,8 @@ def rate_asfct_expression(input_df, output_path: str, cat_filter: str, rate: str
         # Linear regression between log({eLevel}) and pN/pS
         ax = axs[0] if sp == 'k' else axs[1]
         slope, rsquared = slope_asfct_expression(df_sp, q, sp, x_col, rate, name, ax=ax)
-        ax.set_xlabel(f"log({eLevel})")
-        ax.set_ylabel(format_label(rate))
+        ax.set_xlabel(f"{eLevel} (log scale)")
+        ax.set_ylabel(f"{format_label(rate)} (log scale)")
         ax.set_title(f"{name.title()} penguins ({len(df_sp)} genes)")
         slopes[name] = Bootstrap(mean=slope, replicates=[])
         for i in range(rep):
